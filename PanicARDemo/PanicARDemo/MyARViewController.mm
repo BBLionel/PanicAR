@@ -7,6 +7,7 @@
 //
 
 #import "MyARViewController.h"
+#import "PARD2DPoiLabelWithAltitude.h"
 
 //#define LABEL PARPoiLabel
 #define LABEL PARPoiAdvancedLabel
@@ -319,6 +320,48 @@ static NSTimer *infoTimer = nil;
     
     NSLog(@"PAR Objects Created: %d", [[PARController sharedARController] numberOfObjects]);
     _hasARPoiObjects = YES;
+    
+    // now create altitude-based POIs
+    [self createPoiObjectsWithAltitude];
+}
+
+- (void)createRandomLabels:(int)count withClass:(Class)theClass{
+    float minDistance = 200;
+    float maxDistance = 200000;
+    CLLocation* userLocation = [[[PSKSensorManager sharedSensorManager] deviceAttitude] location];
+    CLLocationCoordinate2D userCoordinate = userLocation.coordinate;
+    for (int i = 0; i < count; i++) {
+        float angle = randomf(360.f);
+        float distance = randomRangef(minDistance, maxDistance);
+        
+        CLLocationCoordinate2D point = calculatePositionInDistance(userCoordinate, distance, angle);
+        CLLocation* tmpLocation = [[CLLocation alloc] initWithLatitude:point.latitude longitude:point.longitude];
+        id label = [[theClass alloc] initWithTitle:[NSString stringWithFormat:@"Test Label %d", i+1] atLocation:tmpLocation];
+        //NSLog(@"Created Random Test Label at: %f - %f - %f", point.latitude, point.longitude, distance);
+        [[PARController sharedARController] addObject:label];
+    }
+}
+
+- (void)createPoiObjectsWithAltitude {
+    // check if user location is already determined
+    CLLocation* userLocation = [[[PSKSensorManager sharedSensorManager] deviceAttitude] location];
+    if (!userLocation || userLocation.coordinate.latitude == 0 || userLocation.coordinate.longitude == 0) {
+        [self performSelector:@selector(createPoiObjectsWithAltitude) withObject:nil afterDelay:0.5];
+        return; // exit if user location is not yet determined
+        // we only do this because we later call [PARPoiFactory createRandom:32] which uses the user's position to scatter the generated POIs
+    }
+    
+    // now create new ones
+    [self createRandomLabels:32 withClass:[PARD2DPoiLabelWithAltitude class]];
+    // now fill all altitude-based pois with random altitude values
+    for (PARD2DPoiLabelWithAltitude * poi in [[PARController sharedARController] arObjects]) {
+        if ([poi isMemberOfClass:[PARD2DPoiLabelWithAltitude class]]) {
+            poi.altitude = randomRangef(0, 13000); // random altitude between 0 and 40.000 feet (specified in meters)
+            NSLog(@"POI at %f", poi.altitude);
+        }
+    }
+    
+    NSLog(@"PAR Altitude POI Objects Created: %d", [[PARController sharedARController] numberOfObjects]);
 }
 
 @end
